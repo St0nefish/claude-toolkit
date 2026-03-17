@@ -48,7 +48,7 @@ jobs:
           curl -sSL https://github.com/rvben/rumdl/releases/download/v0.1.53/rumdl-v0.1.53-x86_64-unknown-linux-gnu.tar.gz | tar xz
           sudo mv rumdl /usr/local/bin/
       - name: Run rumdl
-        run: rumdl .
+        run: rumdl check .
 
   lint-shell:
     name: Lint shell scripts
