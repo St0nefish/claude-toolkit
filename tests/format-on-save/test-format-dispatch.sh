@@ -20,9 +20,16 @@ FILTER="${1:-}"
 
 MOCK_DIR=""
 WORK_DIR=""
+FULL_MOCK=""
+RUSTFMT_ONLY=""
+EMPTY_MOCK=""
 cleanup() {
   [[ -n "$MOCK_DIR" ]] && rm -rf "$MOCK_DIR"
   [[ -n "$WORK_DIR" ]] && rm -rf "$WORK_DIR"
+  [[ -n "$FULL_MOCK" ]] && rm -rf "$FULL_MOCK"
+  [[ -n "$RUSTFMT_ONLY" ]] && rm -rf "$RUSTFMT_ONLY"
+  [[ -n "$EMPTY_MOCK" ]] && rm -rf "$EMPTY_MOCK"
+  [[ -n "$HELPER_BIN" ]] && rm -rf "$HELPER_BIN"
 }
 trap cleanup EXIT
 MOCK_DIR=$(mktemp -d)
@@ -175,6 +182,9 @@ touch "$WORK_DIR/with-cargo/Cargo.toml"
 touch "$WORK_DIR/with-cargo/src/main.rs"
 mkdir -p "$WORK_DIR/plain-rs"
 touch "$WORK_DIR/plain-rs/standalone.rs"
+mkdir -p "$WORK_DIR/workspace/crates/foo/src"
+touch "$WORK_DIR/workspace/Cargo.toml"
+touch "$WORK_DIR/workspace/crates/foo/src/lib.rs"
 touch "$WORK_DIR/config.toml"
 
 # ---------------------------------------------------------------------------
@@ -187,6 +197,20 @@ for fmt in claude copilot; do
   : >"$LOG"
   ec=$(run_hook "$fmt" "$WORK_DIR/with-cargo/src/main.rs" "$PATH_ALL")
   assert_called "[$fmt] cargo fmt invoked with --manifest-path" "$LOG" "cargo fmt --manifest-path"
+  assert_not_called "[$fmt] rustfmt not invoked" "$LOG" "rustfmt"
+  assert_exit_zero "[$fmt] exits 0" "$ec"
+done
+
+# ---------------------------------------------------------------------------
+# Tests: .rs with Cargo.toml multiple levels up (workspace layout)
+# ---------------------------------------------------------------------------
+
+echo "── .rs file with Cargo.toml multiple levels up ──"
+
+for fmt in claude copilot; do
+  : >"$LOG"
+  ec=$(run_hook "$fmt" "$WORK_DIR/workspace/crates/foo/src/lib.rs" "$PATH_ALL")
+  assert_called "[$fmt] cargo fmt finds Cargo.toml via walk-up" "$LOG" "cargo fmt --manifest-path $WORK_DIR/workspace/Cargo.toml"
   assert_not_called "[$fmt] rustfmt not invoked" "$LOG" "rustfmt"
   assert_exit_zero "[$fmt] exits 0" "$ec"
 done
@@ -255,12 +279,6 @@ for fmt in claude copilot; do
   assert_warns "[$fmt] warns about missing taplo" "$STDERR_LOG" "taplo not found"
   assert_exit_zero "[$fmt] exits 0" "$ec"
 done
-
-# ---------------------------------------------------------------------------
-# Cleanup extra temp dirs
-# ---------------------------------------------------------------------------
-
-rm -rf "$FULL_MOCK" "$RUSTFMT_ONLY" "$EMPTY_MOCK" "$HELPER_BIN"
 
 # ---------------------------------------------------------------------------
 # Summary
