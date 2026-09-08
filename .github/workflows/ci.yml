@@ -59,3 +59,14 @@ jobs:
       - uses: actions/checkout@v5
       - name: Find and lint shell scripts
         run: bash .github/scripts/lint-shell.sh
+
+  ci-pass:
+    name: ci-pass
+    needs: [validate, test, validate-frontmatter, lint-markdown, lint-shell]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check upstream results
+        run: |
+          [ "${{ contains(needs.*.result, 'failure') }}" = "false" ] || exit 1
+          [ "${{ contains(needs.*.result, 'cancelled') }}" = "false" ] || exit 1
