@@ -7,15 +7,16 @@ Take whatever in-progress work exists in this repo and drive it through the cano
 
 This command invokes the `ship` skill — see the sibling `ship` skill for the full procedure. The summary:
 
-1. **Stage and commit** any uncommitted changes (specific files only — never `git add -A`/`.`).
-2. **Ensure a feature branch** with a conventional prefix (`feat-`, `fix-`, `chore-`, `docs-`, …); create one if currently on the default branch.
-3. **Push** to origin (`-u` on first push).
-4. **Create the PR** via `gh pr create` (or the host-native equivalent on Gitea) if one is not already open for the branch.
-5. **Watch CI** until it passes, fails, or merges. On failure, stop and surface the failure; do not push fixes silently.
-6. **Wait for merge** if the repo has an auto-merge bot. Never invoke `gh pr merge` to merge manually unless the user explicitly asks.
-7. **Return to the default branch** and `git pull`. If the work was done in a linked git worktree, switch back to the main worktree first, then (after the merge) remove the merged worktree — asking before discarding any uncommitted changes — prune, and delete the merged branch.
+1. **Detect the platform once**: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait platform` → `github` or `gitea`. Every later hosted-CLI call branches on this.
+2. **Stage and commit** any uncommitted changes (specific files only — never `git add -A`/`.`).
+3. **Ensure a feature branch** with a conventional prefix (`feat-`, `fix-`, `chore-`, `docs-`, …); create one if currently on the default branch.
+4. **Push** to origin (`-u` on first push).
+5. **Create the PR** — `gh pr create --title T --head B --base M --body-file -` on GitHub; `tea pr create --title T --head B --base M --description D` on Gitea (note: `tea` takes `-d/--description` only, no `--body`/`--body-file`) — if one is not already open for the branch.
+6. **Watch CI** via `bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait run watch --branch NAME` until it passes, fails, or merges. On failure, stop and surface the failure; do not push fixes silently.
+7. **Wait for merge** via `bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait pr wait --branch NAME`. On GitHub this waits on an auto-merge bot if the repo has one. **Gitea has no auto-merge at all** — there this waits on a human to merge, or on you only if the user explicitly asked you to merge (`gh pr merge N --squash --delete-branch` / `tea pr merge N --style squash`). Never merge unless explicitly asked — merging bypasses CI gating and any auto-merge/review workflow.
+8. **Return to the default branch** and `git pull`. If the work was done in a linked git worktree, switch back to the main worktree first, then (after the merge) remove the merged worktree — asking before discarding any uncommitted changes — prune, and delete the merged branch.
 
-On GitHub repos, prefer `gh` for every PR, run, and repo call. On Gitea or other hosts, use the equivalent host-native tooling or API.
+Never hand-roll a polling loop (`until gh pr view ... | grep MERGED; do sleep`) — `git-wait pr wait` / `git-wait run watch` already handle timeouts and terminal-state detection on both platforms. Never guess `gh`/`tea` flags beyond what's documented in the sibling `git-wait` skill — confirm with `--help` if unsure.
 
 When done, report a one-line summary: PR number + URL, CI status, final state, and confirmation that the workspace is back on the default branch.
 

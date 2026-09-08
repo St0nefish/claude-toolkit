@@ -9,8 +9,9 @@ description: >-
   "send it", "ship it", "merge it", or terse single words "watch", "merge",
   "pull" when the context implies finishing a PR. Drives staging → commit →
   push → PR create → CI watch → merge wait → checkout master → pull, using
-  the git-cli wrapper for every GitHub/Gitea call, and cleans up the worktree
-  if one was used. Skips steps that are already complete instead of redoing them.
+  `gh`/`tea` directly (platform detected once via git-wait) for every
+  GitHub/Gitea call, and cleans up the worktree if one was used. Skips steps
+  that are already complete instead of redoing them.
 allowed-tools: Bash
 ---
 
@@ -18,7 +19,12 @@ allowed-tools: Bash
 
 **Purpose.** Take whatever in-progress work exists and drive it through the canonical lifecycle: stage → commit → push → PR → watch CI → wait for merge → return to default branch → pull → clean up the worktree if one was used. Skip any step that's already done.
 
-**Always use the `git-cli` wrapper** at `${CLAUDE_PLUGIN_ROOT}/scripts/git-cli` for every GitHub/Gitea call. Never invoke raw `gh` or `tea` directly — the wrapper auto-detects the platform from the git remote so the same procedure works on both. See the sibling `git-cli` skill for full command reference.
+**Detect the platform once, then call `gh` or `tea` directly.** There is no
+wrapper. Step 1 below calls `git-wait platform` a single time; every later
+step that needs a hosted-CLI call branches on that result with an explicit
+`github:` block (`gh`) and `gitea:` block (`tea`). See the sibling `git-wait`
+skill for the full gh-vs-tea command map — don't invent flags beyond what's
+documented there.
 
 ## When to use
 
@@ -45,9 +51,9 @@ git status --porcelain=v1 -b
 git rev-parse --abbrev-ref HEAD
 ```
 
-Establish: dirty working tree? on default branch or feature branch? upstream set? Determine the default branch via `${CLAUDE_PLUGIN_ROOT}/scripts/git-cli repo default-branch`.
+Establish: dirty working tree? on default branch or feature branch? upstream set?
 
-Also detect **whether this checkout is a linked git worktree** — this gates the cleanup in step 7:
+Also detect **whether this checkout is a linked git worktree** — this gates the cleanup in step 8:
 
 ```bash
 git_dir=$(git rev-parse --git-dir)
@@ -55,15 +61,31 @@ git_common_dir=$(git rev-parse --git-common-dir)
 # Linked worktree iff the two differ. Normalize with realpath first — on macOS
 # /tmp is a symlink to /private/tmp, so a raw string compare can falsely differ.
 if [ "$(realpath "$git_dir")" != "$(realpath "$git_common_dir")" ]; then
-  echo "linked worktree"   # step 7 cleans it up after a confirmed merge
+  echo "linked worktree"   # step 8 cleans it up after a confirmed merge
 else
-  echo "main checkout"     # step 7 keeps its current behavior
+  echo "main checkout"     # step 8 keeps its current behavior
 fi
 ```
 
 This read is non-destructive; it only records context for later.
 
-### 1. Stage and commit
+### 1. Detect platform
+
+```bash
+platform=$(bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait platform)
+```
+
+`platform` is `github` or `gitea`. Every later step that talks to the hosted
+CLI branches on this value once — resolved here, not re-detected per step.
+
+Also resolve the default branch now, since both `github:` and `gitea:` need it later:
+
+```bash
+github: default=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+gitea:  default=$(tea api repos/{owner}/{repo} | jq -r .default_branch)
+```
+
+### 2. Stage and commit
 
 If there are uncommitted changes:
 
@@ -73,7 +95,7 @@ If there are uncommitted changes:
 
 Skip this step if the working tree is clean.
 
-### 2. Ensure feature branch
+### 3. Ensure feature branch
 
 If on the default branch (`master`/`main`), create a feature branch with a conventional prefix (`feat-`, `fix-`, `chore-`, `docs-`, `refactor-`, `test-`) before pushing:
 
@@ -83,7 +105,7 @@ git checkout -b <prefix>-<short-description>
 
 Skip if already on a non-default branch.
 
-### 3. Push
+### 4. Push
 
 ```bash
 git push -u origin HEAD
@@ -91,56 +113,71 @@ git push -u origin HEAD
 
 `-u` is needed only on first push; if upstream is already tracked, plain `git push` is fine. If the push fails because the remote has new commits, do not force-push — investigate first (someone else may have pushed; `git pull --rebase`, resolve, retry).
 
-### 4. Create PR (if not already open)
+### 5. Create PR (if not already open)
 
 Check first:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/git-cli pr list --state open --limit 50 \
-  | jq -r --arg b "$(git rev-parse --abbrev-ref HEAD)" '.[] | select(.head==$b) | .number'
+github: gh pr list --state open --json number,headRefName \
+          --jq --arg b "$(git rev-parse --abbrev-ref HEAD)" '.[] | select(.headRefName==$b) | .number'
+gitea:  tea pr list --state open --output json --fields index,head \
+          | jq -r --arg b "$(git rev-parse --abbrev-ref HEAD)" '.[] | select(.head==$b) | .index'
 ```
 
 If no PR exists for the current branch:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/git-cli pr create --title "..." --head "$(git rev-parse --abbrev-ref HEAD)" --body-file - <<'EOF'
+github: gh pr create --title "..." --head "$(git rev-parse --abbrev-ref HEAD)" --base "$default" --body-file - <<'EOF'
 ## Summary
 ...
 
 ## Test plan
 ...
 EOF
+
+gitea:  tea pr create --title "..." --head "$(git rev-parse --abbrev-ref HEAD)" --base "$default" --description "$(cat <<'EOF'
+## Summary
+...
+
+## Test plan
+...
+EOF
+)"
 ```
 
-Pull a concise title from the most recent commit message; pull the body from the commit body plus a short test plan.
+Pull a concise title from the most recent commit message; pull the body from the commit body plus a short test plan. Note `tea pr create` takes `-d`/`--description` only — no `--body`/`--body-file`.
 
-### 5. Watch CI
+### 6. Watch CI
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/git-cli run watch --branch "$(git rev-parse --abbrev-ref HEAD)" --interval 30
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait run watch --branch "$(git rev-parse --abbrev-ref HEAD)" --interval 30
 ```
 
-This polls until CI passes, fails, or merges. Output includes `status` (`pass|fail|closed|timeout|no-workflow`), `url`, `duration`, and on fail `failed_jobs` with logs piped to stderr.
+This is platform-agnostic — it works the same on `github` and `gitea`. It polls until CI passes, fails, or the run disappears. Output includes `status` (`pass|fail|closed|timeout|no-workflow`), `url`, `duration`, and on fail `failed_jobs` with logs piped to stderr.
 
 **On failure:** stop the orchestrator and surface the failure to the user. Do not push fixes silently — let them decide.
 
-### 6. Wait for merge
-
-If the repo has an auto-merge bot (some repos enable auto-merge on PR open), wait for the merge to complete:
+### 7. Wait for merge
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/git-cli pr wait --branch "$(git rev-parse --abbrev-ref HEAD)" --interval 15
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait pr wait --branch "$(git rev-parse --abbrev-ref HEAD)" --interval 15
 ```
 
-Skip this step if the repo does not auto-merge. **Never call `git-cli pr merge` to merge manually unless the user explicitly asks** — that bypasses CI gating and the auto-merge workflow.
+Also platform-agnostic. **Gitea has no auto-merge at all** — on `gitea`, this
+is waiting on a human to click merge (or on you, if the user asked you to
+merge it), not on a bot. On `github`, this waits on the repo's auto-merge
+bot if one is configured.
 
-### 7. Return to default branch (and clean up the worktree if one was used)
-
-Always determine the default branch first:
+Skip this step if the repo has no auto-merge bot **and** the user hasn't asked you to merge manually. **Never merge the PR yourself unless the user explicitly asks** — merging bypasses CI gating and whatever review/auto-merge workflow the repo relies on:
 
 ```bash
-default=$(${CLAUDE_PLUGIN_ROOT}/scripts/git-cli repo default-branch)
+github: gh pr merge N --squash --delete-branch   # only after explicit user approval
+gitea:  tea pr merge N --style squash            # only after explicit user approval
 ```
+
+### 8. Return to default branch (and clean up the worktree if one was used)
+
+`default` was already resolved in step 1.
 
 **Case A — main checkout** (step 0 reported `main checkout`): unchanged behavior.
 
@@ -149,7 +186,7 @@ git checkout "$default"
 git pull
 ```
 
-**Case B — linked worktree** (step 0 reported `linked worktree`): only proceed **after the branch has actually merged** (step 6 confirmed the merge). Worktree teardown is destructive and hard to reverse — never run this block on an unmerged branch.
+**Case B — linked worktree** (step 0 reported `linked worktree`): only proceed **after the branch has actually merged** (step 7 confirmed the merge). Worktree teardown is destructive and hard to reverse — never run this block on an unmerged branch.
 
 1. Capture identifiers **while still inside the linked worktree** (these are per-worktree):
 
@@ -208,17 +245,17 @@ If `$ARGUMENTS` is empty, infer title and body from the diff and recent commit l
 
 ## Idempotency
 
-Each step probes state first and skips when there's nothing to do. Re-running the orchestrator after a partial run should pick up from wherever it left off — e.g. if the PR is already open, jump to step 5; if CI is already passing, jump to step 6; if the PR is already merged, jump to step 7.
+Each step probes state first and skips when there's nothing to do. Re-running the orchestrator after a partial run should pick up from wherever it left off — e.g. if the PR is already open, jump to step 6; if CI is already passing, jump to step 7; if the PR is already merged, jump to step 8.
 
-The step-7 worktree cleanup is gated twice: it runs only when step 0 detected a linked worktree **and** the branch has merged. In the main checkout it is skipped entirely (current behavior preserved), and re-running after the worktree is already removed is a no-op — the worktree detection short-circuits.
+The step-8 worktree cleanup is gated twice: it runs only when step 0 detected a linked worktree **and** the branch has merged. In the main checkout it is skipped entirely (current behavior preserved), and re-running after the worktree is already removed is a no-op — the worktree detection short-circuits.
 
 ## What NOT to do
 
-- Do **not** invoke raw `gh` or `tea` — always go through `git-cli`.
+- Do **not** guess `gh`/`tea` flags — use the map in the sibling `git-wait` skill, or run `--help` to confirm.
 - Do **not** force-push without explicit user approval (and even then, only `--force-with-lease`).
-- Do **not** call `gh pr merge` / `tea pr merge` to manually merge unless the user asked — the auto-merge bot handles this.
+- Do **not** call `gh pr merge` / `tea pr merge` to manually merge unless the user asked — on GitHub, the auto-merge bot normally handles this; on Gitea there is no auto-merge, so a human (or you, if asked) has to do it.
 - Do **not** end the session on a feature branch after a merge — return to the default branch and pull.
-- Do **not** invent your own polling loop (`until gh pr view ... | grep MERGED; do sleep`) — `git-cli pr wait` and `git-cli run watch` already handle this with proper timeouts and failure detection.
+- Do **not** invent your own polling loop (`until gh pr view ... | grep MERGED; do sleep`) — `git-wait pr wait` and `git-wait run watch` already handle this with proper timeouts and failure detection, on both platforms.
 - Do **not** `git worktree remove` the worktree you are standing in — `cd` into the main worktree first, then remove.
 - Do **not** `--force`-remove a worktree with uncommitted or untracked changes without explicit user approval.
 - Do **not** `git branch -D` (force-delete) without confirming first — a `git branch -d` refusal usually signals a squash merge, not work that's safe to discard blindly.

@@ -82,23 +82,23 @@ fi
 [[ "$HOOK_TOOL_NAME" == "Bash" ]] || exit 0
 
 # --- Outward VCS publish guard (applies to ALL Bash, not just own scripts) ---
-# Never SILENTLY approve creating or merging a pull request — whether it goes
-# through this plugin's git-cli wrapper OR a direct `gh`/`tea` invocation that
-# would otherwise sidestep the wrapper (and likely hit a user allowlist).
-# Publishing/merging a PR triggers CI and any auto-merge automation, so it must
-# be confirmed by the user rather than waved through. We require BOTH a known
-# VCS CLI token (gh / tea / git-cli) AND a "pr create" | "pr merge" subcommand,
-# so read-only forms (`pr auto-merge-status`) and reversible ones (`pr close`)
-# still fall through. On Copilot CLI, hook_ask degrades to a hard deny (there is
-# no "ask" there) — meaning the user simply runs the publish step manually.
+# Never SILENTLY approve creating or merging a pull request. Publishing/merging
+# a PR triggers CI and any auto-merge automation, so it must be confirmed by the
+# user rather than waved through. We require BOTH a known VCS CLI token
+# (gh / tea) AND a "pr create" | "pr merge" subcommand, so read-only forms and
+# reversible ones (`pr close`) still fall through. On Copilot CLI, hook_ask
+# degrades to a hard deny (there is no "ask" there) — meaning the user simply
+# runs the publish step manually.
+#
+# `git-wait` is deliberately absent from the token list: it only ever waits on a
+# PR or a CI run and has no create/merge surface to guard.
 #
 # Enabling auto-merge is covered: the real path is `gh pr merge --auto`, which
 # the `pr merge` arm already catches. We deliberately do NOT broaden to a bare
-# "auto-merge" token — that would also trap the read-only `pr auto-merge-status`
-# call the session-end flow relies on. (`pr review --approve`, `release create`
-# etc. are out of scope by design — this guard is narrowly about opening/merging
-# a PR.)
-if [[ "$HOOK_COMMAND" =~ (^|[[:space:]/])(gh|tea|git-cli)[[:space:]] ]] &&
+# "auto-merge" token — that would trap read-only status probes. (`pr review
+# --approve`, `release create` etc. are out of scope by design — this guard is
+# narrowly about opening/merging a PR.)
+if [[ "$HOOK_COMMAND" =~ (^|[[:space:]/])(gh|tea)[[:space:]] ]] &&
   [[ "$HOOK_COMMAND" =~ (^|[[:space:]])pr[[:space:]]+(create|merge)([[:space:]]|$) ]]; then
   # NOTE: BASH_REMATCH below reflects the SECOND [[ =~ ]] (the pr subcommand
   # test, evaluated last), so [2] is "create"|"merge". Do not reorder the two

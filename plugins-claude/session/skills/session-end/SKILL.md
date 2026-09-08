@@ -35,19 +35,35 @@ fails from inside a worktree.)
    changes, tell the user there is nothing to finalize
    and stop.
 
-1b. Check for an existing open PR for the current branch:
+1b. Detect the platform once — every later hosted-CLI step in this flow
+   branches on this value:
 
    ```bash
-   PR_JSON=$(bash \
-     ${CLAUDE_PLUGIN_ROOT}/scripts/git-cli \
-     pr list --state open \
-     | jq --arg b "$CURRENT" \
-       '.[] | select(.head == $b)')
+   PLATFORM=$(bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait platform)
    ```
 
-   If found, extract the PR URL and number, skip
-   steps 3-7, and jump directly to step 8 (CI watch)
-   using the existing PR info.
+   Check for an existing open PR for the current branch:
+
+- **github:**
+
+     ```bash
+     PR_JSON=$(gh pr list --state open \
+       --json number,title,headRefName,url \
+       | jq --arg b "$CURRENT" '.[] | select(.headRefName == $b)')
+     ```
+
+- **gitea:**
+
+     ```bash
+     PR_JSON=$(tea pr list --state open --output json \
+       --fields index,title,head,url \
+       | jq --arg b "$CURRENT" \
+         '.[] | select(.head == $b or (.head | split(":") | last) == $b)')
+     ```
+
+  If found, extract the PR URL and number, skip
+  steps 3-7, and jump directly to step 8 (CI watch)
+  using the existing PR info.
 
 2. Check for uncommitted work. If found, ask the user
    via AskUserQuestion:
@@ -108,24 +124,41 @@ fails from inside a worktree.)
    If a linked issue exists, append `Fixes #N` for bug/fix work or `Closes #N`
    otherwise to the PR body.
 
-6. Create the PR:
+6. Create the PR. Get the default branch and open the PR, branching on
+   `$PLATFORM` from step 1b — `tea pr create` has no `--body-file`, only
+   inline `--description`:
 
-   ```bash
-   DEFAULT=$(bash \
-     ${CLAUDE_PLUGIN_ROOT}/scripts/git-cli \
-     repo default-branch)
-   BRANCH=$(git rev-parse --abbrev-ref HEAD)
-   cat > /tmp/pr-body.md << 'EOF'
-   <PR body from step 5>
-   EOF
-   bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-cli \
-     pr create \
-     --title "<concise PR title>" \
-     --head "$BRANCH" \
-     --base "$DEFAULT" \
-     --body-file /tmp/pr-body.md
-   rm -f /tmp/pr-body.md
-   ```
+   - **github:**
+
+     ```bash
+     DEFAULT=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+     BRANCH=$(git rev-parse --abbrev-ref HEAD)
+     cat > /tmp/pr-body.md << 'EOF'
+     <PR body from step 5>
+     EOF
+     gh pr create \
+       --title "<concise PR title>" \
+       --head "$BRANCH" \
+       --base "$DEFAULT" \
+       --body-file /tmp/pr-body.md
+     rm -f /tmp/pr-body.md
+     ```
+
+   - **gitea:**
+
+     ```bash
+     DEFAULT=$(tea api repos/{owner}/{repo} | jq -r .default_branch)
+     BRANCH=$(git rev-parse --abbrev-ref HEAD)
+     cat > /tmp/pr-body.md << 'EOF'
+     <PR body from step 5>
+     EOF
+     tea pr create \
+       --title "<concise PR title>" \
+       --head "$BRANCH" \
+       --base "$DEFAULT" \
+       --description "$(cat /tmp/pr-body.md)"
+     rm -f /tmp/pr-body.md
+     ```
 
 7. Confirm to the user: PR URL, linked issue (if any),
    and note that CI is being watched next.
@@ -133,7 +166,7 @@ fails from inside a worktree.)
 8. **Watch CI** — poll the CI run for the current branch:
 
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-cli \
+   bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait \
      run watch --branch "$BRANCH"
    ```
 
@@ -154,23 +187,30 @@ fails from inside a worktree.)
      - **Continue** — proceed to step 8b
 
 8a. **Check auto-merge** — only when step 8 returned
-   `pass` and `ON_BASE` is false:
+   `pass` and `ON_BASE` is false. There is no `pr auto-merge-status`
+   command; check it directly, and only on GitHub — Gitea has no auto-merge
+   feature at all:
 
-   ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-cli \
-     pr auto-merge-status --branch "$CURRENT"
-   ```
+- **github:**
 
-   Parse the `auto_merge` value from the output.
-   If `true`, note to the user that auto-merge is enabled
-   and the PR will merge automatically.
+     ```bash
+     AUTO_MERGE=$(gh pr view "$CURRENT" --json autoMergeRequest \
+       --jq '.autoMergeRequest != null')
+     ```
+
+  If `true`, note to the user that auto-merge is enabled and the PR will
+  merge automatically.
+
+- **gitea:** skip this check. Note to the user instead that the `pr wait`
+  in step 8b is waiting on a human to click merge, not a bot — Gitea has
+  no auto-merge.
 
 8b. **Wait for merge** — skip this step if `ON_BASE` is
    true (direct-to-default pushes have no PR to wait on).
    Otherwise, poll until the PR merges:
 
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-cli \
+   bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait \
      pr wait --branch "$CURRENT"
    ```
 

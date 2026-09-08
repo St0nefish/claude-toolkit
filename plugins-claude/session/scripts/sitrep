@@ -183,9 +183,22 @@ if [[ -n "$active_branches" ]]; then
     echo "$active_branches"
 fi
 
-# Open issues (requires git-cli)
-if [[ -x "$SCRIPT_DIR/git-cli" ]]; then
-    issues="$(bash "$SCRIPT_DIR/git-cli" issue list --limit 10 --state open 2>/dev/null || true)"
+# Open issues (requires git-wait for platform detection, plus gh or tea)
+if [[ -x "$SCRIPT_DIR/git-wait" ]]; then
+    platform="$(bash "$SCRIPT_DIR/git-wait" platform 2>/dev/null || true)"
+    issues=""
+    case "$platform" in
+        github)
+            if command -v gh >/dev/null 2>&1; then
+                issues="$(gh issue list --state open --limit 10 --json number,title 2>/dev/null || true)"
+            fi
+            ;;
+        gitea)
+            if command -v tea >/dev/null 2>&1; then
+                issues="$(tea issues list --state open --limit 10 --output json --fields index,title 2>/dev/null || true)"
+            fi
+            ;;
+    esac
     if [[ -n "$issues" && "$issues" != "[]" ]]; then
         echo ""
         echo "=== OPEN ISSUES ==="

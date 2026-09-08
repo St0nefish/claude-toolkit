@@ -39,11 +39,24 @@ issues instead, use `/session:session-issue`; for a read-only status view, use
 ### Phase 1 — Identify the target & base branch (new work only)
 
 3. Interpret the description to pick a base branch name:
-   - **References an existing issue** (e.g. "#42", "issue 42") → fetch it and link it:
+   - **References an existing issue** (e.g. "#42", "issue 42") → fetch it and link
+     it. Detect the platform, then fetch the issue:
 
      ```bash
-     bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-cli issue show <N>
+     bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait platform
      ```
+
+     - **github:**
+
+       ```bash
+       gh issue view <N> --json number,title,body,state,labels,comments
+       ```
+
+     - **gitea:**
+
+       ```bash
+       tea issues <N> --output json
+       ```
 
      Derive the branch type from labels (`bug`/`fix` → `bug`,
      `enhancement`/`feature`/`improvement` → `enhancement`,

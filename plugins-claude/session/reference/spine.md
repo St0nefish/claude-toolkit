@@ -134,8 +134,34 @@ without seeing this conversation. Pick 2-3 angles based on what the work describ
 - **Trace the data/call flow** — follow the call chain or data flow through the area.
   Report entry points, intermediate steps, dependencies, and edge cases.
 
-If an agent needs the issue tracker or repo API, it MUST use
-`bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-cli` — never raw `gh`/`tea`.
+If an agent needs the issue tracker or repo API, use `gh` or `tea` directly —
+detect the platform first with `bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait
+platform`, then branch on the result. `git-wait` itself is for two things
+only — blocking until a PR merges (`pr wait`) or CI finishes (`run watch`) —
+it is not a CLI wrapper, so everything else (listing, creating, commenting,
+merging, closing, viewing logs) goes straight to `gh`/`tea`.
+
+`gh` and `tea` diverge in ways that repeatedly trip agents up:
+
+- **PR body**: `gh pr create` takes `--body-file -` (stdin) or a real file
+  path; `tea pr create` has no `--body`/`--body-file` at all — only
+  `-d`/`--description` with inline text (`--description "$(cat FILE)"` to
+  pull from a file).
+- **PR state values**: `gh pr list --state` accepts
+  `open|closed|merged|all`; `tea pr list --state` only accepts
+  `open|closed|all` — a merged PR reports state `closed`. To tell merged
+  from closed on Gitea: `tea api repos/{owner}/{repo}/pulls/N | jq -r
+  .merged`.
+- **Auto-merge**: `gh pr merge --auto` enables it, and `gh pr view N --json
+  autoMergeRequest --jq '.autoMergeRequest != null'` checks it. Gitea has no
+  auto-merge at all — a `pr wait` on Gitea is waiting on a human to click
+  merge, not a bot.
+- **CI run listing**: `gh run list --branch B` filters server-side and just
+  works. `tea actions runs list --branch` is unreliable (Gitea leaves
+  `head_branch` empty on `pull_request`-triggered runs) and `tea actions runs
+  view` ignores `--output json` and prints a human table — use `tea api
+  repos/{owner}/{repo}/actions/runs` (and `.../actions/runs/ID/jobs`)
+  instead.
 
 ## Phase 4 — Plan (MANDATORY)
 

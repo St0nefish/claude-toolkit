@@ -25,7 +25,7 @@ agent-toolkit/                              # marketplace repo
 │   ├── convert-doc/                         # skill: pandoc document conversion
 │   ├── elevated-edit/                       # skill: SSH/sudo pull-edit-push via rsync
 │   ├── format-on-save/                      # hook: auto-format after Edit/Write
-│   ├── git-tools/                           # skills: GitHub/Gitea CLI wrapper plus ship orchestrator
+│   ├── git-tools/                           # skills: PR/CI waiters plus ship orchestrator
 │   ├── image/                               # skills: clipboard paste + screenshot
 │   ├── java-toolkit/                        # MCP + skills: Maven Central + class index + jar-explore (Docker Compose)
 │   ├── kb-capture/                          # skills: research-to-document automation
@@ -47,7 +47,7 @@ agent-toolkit/                              # marketplace repo
     ├── sync.sh                              # vendoring manifest + copier (run after edits)
     ├── approve-own-scripts.sh               # PreToolUse: auto-approve own scripts
     ├── hook-compat.sh                       # hook payload normalizer
-    ├── git-cli                              # GitHub/Gitea CLI wrapper
+    ├── git-wait                             # blocking PR/CI waiters + platform detection
     ├── detect-schema.sh                     # frontmatter schema/taxonomy discovery
     └── validate-frontmatter.sh              # frontmatter validation against schema
 ```
@@ -91,7 +91,7 @@ On the **Claude side** (`plugins-claude/`), every user-facing slash entry is a s
 **Convention for new skills:**
 
 - *User-only workflow* (formerly a `/command`): set `disable-model-invocation: true`. The skill appears in `/` autocomplete; the model can't auto-invoke. Description bytes are not loaded into the model's context budget.
-- *Model-helper background guide* (e.g., `serena-cheatsheet`, `git-cli`, `ast-grep`): set `user-invocable: false`. Model-only.
+- *Model-helper background guide* (e.g., `serena-cheatsheet`, `git-wait`, `ast-grep`): set `user-invocable: false`. Model-only.
 - *Both* (auto-trigger AND user-invocable, e.g., `session/summarize`): leave both flags off.
 
 For non-plugin skills (personal `~/.claude/skills/` or project `.claude/skills/`), `disable-model-invocation: true` in frontmatter is equivalent to setting `skillOverrides[<name>] = "user-invocable-only"` in settings.json. **`skillOverrides` does not apply to plugin-sourced skills** — per [the docs](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings), those are managed via `/plugin` and there is no per-skill override knob. The only way to mark a plugin skill user-invocable-only is to set the flag in its `SKILL.md` frontmatter at the source. To reduce skill-listing budget pressure from plugin skills, raise [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings) instead.
@@ -115,7 +115,7 @@ Agents are invoked via the `Agent` tool with `subagent_type: <name>`. Use `resea
 
 ## Shared Scripts
 
-`utils/` is the canonical source for scripts used by more than one plugin (`approve-own-scripts.sh`, `hook-compat.sh`, `git-cli`, `detect-schema.sh`, `validate-frontmatter.sh`). Each consuming plugin carries a **real file copy** at `plugins-claude/<name>/scripts/<util>` — not a symlink.
+`utils/` is the canonical source for scripts used by more than one plugin (`approve-own-scripts.sh`, `hook-compat.sh`, `git-wait`, `detect-schema.sh`, `validate-frontmatter.sh`). Each consuming plugin carries a **real file copy** at `plugins-claude/<name>/scripts/<util>` — not a symlink.
 
 ### Why vendor instead of symlink
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-run-watch-gitea.sh — Test harness for git-cli `run watch` head-SHA
+# test-run-watch-gitea.sh — Test harness for git-wait `run watch` head-SHA
 # fallback on the Gitea path.
 #
 # Regression test for #140: Gitea leaves head_branch/branch empty on
@@ -11,12 +11,12 @@
 # The tests exercise the pre-check fallback (terminal-state-before-sleep) so no
 # real waiting is needed. Uses mock git/tea via PATH injection.
 #
-# Usage: bash tests/git-cli/test-run-watch-gitea.sh [filter]
+# Usage: bash tests/git-wait/test-run-watch-gitea.sh [filter]
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GIT_CLI="$SCRIPT_DIR/../../utils/git-cli"
+GIT_WAIT="$SCRIPT_DIR/../../utils/git-wait"
 source "$SCRIPT_DIR/../lib/mock-git.sh"
 
 PASS=0
@@ -120,7 +120,7 @@ if ! skip_filter "$label"; then
   write_tea_mock
 
   exit_code=0
-  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch --branch feature-widget \
+  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch --branch feature-widget \
     --initial-delay 0 --interval 0 2>"$MOCK_DIR/stderr") || exit_code=$?
   stderr=$(cat "$MOCK_DIR/stderr")
 
@@ -141,7 +141,7 @@ if ! skip_filter "$label"; then
   write_tea_mock
 
   exit_code=0
-  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch --branch feature-widget \
+  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch --branch feature-widget \
     --initial-delay 0 --interval 0 2>"$MOCK_DIR/stderr") || exit_code=$?
   stderr=$(cat "$MOCK_DIR/stderr")
 
