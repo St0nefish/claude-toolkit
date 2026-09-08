@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run ALL tests across the repo.
 # Usage: bash test.sh [filter-args...]
+# Verification note: concurrent-PR merge test A (inert, no functional change).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
