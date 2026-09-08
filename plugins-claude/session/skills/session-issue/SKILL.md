@@ -22,11 +22,30 @@ begin-work spine (explore → plan). To start from your own description instead,
 
    > Fetch open issues, rank them, and return ALL of them (not a top-N subset).
    >
-   > Run this command:
+   > First detect the platform:
    >
    > ```bash
-   > bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-cli issue list --limit 50 --state open
+   > bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait platform
    > ```
+   >
+   > Then run the matching command:
+   >
+   > - **github:**
+   >
+   >   ```bash
+   >   gh issue list --state open --limit 50 \
+   >     --json number,title,body,labels,milestone,comments,createdAt
+   >   ```
+   >
+   > - **gitea:**
+   >
+   >   ```bash
+   >   tea issues list --state open --limit 50 --output json \
+   >     --fields index,title,body,labels,milestone,comments,created
+   >   ```
+   >
+   > (GitHub calls the issue number `number` and the age field `createdAt`;
+   > Gitea calls them `index` and `created` — treat them the same either way.)
    >
    > From the returned JSON array, rank by priority using these criteria:
    > - Labels indicating urgency: `critical`, `blocker`, `high-priority`, `bug` rank higher
@@ -67,11 +86,23 @@ begin-work spine (explore → plan). To start from your own description instead,
      whole list and pick.)
 
 3. **Fetch the full issue** (save the body and labels — the spine needs them as
-   context):
+   context). Detect the platform, then fetch:
 
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-cli issue show <N>
+   bash ${CLAUDE_PLUGIN_ROOT}/scripts/git-wait platform
    ```
+
+   - **github:**
+
+     ```bash
+     gh issue view <N> --json number,title,body,state,labels,comments
+     ```
+
+   - **gitea:**
+
+     ```bash
+     tea issues <N> --output json
+     ```
 
 ### Phase 2 — Base branch name
 

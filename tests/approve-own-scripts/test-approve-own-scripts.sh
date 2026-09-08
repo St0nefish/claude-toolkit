@@ -74,12 +74,12 @@ run_test_ask() {
 # ===== ALLOW: plugin's own scripts =====
 echo "── Direct script execution ──"
 run_test_both allow \
-  "$FAKE_PLUGIN_ROOT/scripts/git-cli run list --branch main --limit 1" \
-  "direct: git-cli with args"
+  "$FAKE_PLUGIN_ROOT/scripts/git-wait run watch --branch main --timeout 60" \
+  "direct: git-wait with args"
 
 run_test_both allow \
-  "$FAKE_PLUGIN_ROOT/scripts/git-cli" \
-  "direct: git-cli no args"
+  "$FAKE_PLUGIN_ROOT/scripts/git-wait" \
+  "direct: git-wait no args"
 
 run_test_both allow \
   "$FAKE_PLUGIN_ROOT/scripts/some-script.sh --flag value" \
@@ -87,8 +87,8 @@ run_test_both allow \
 
 echo "── bash/sh prefix ──"
 run_test_both allow \
-  "bash $FAKE_PLUGIN_ROOT/scripts/git-cli run list --limit 1" \
-  "bash prefix: git-cli"
+  "bash $FAKE_PLUGIN_ROOT/scripts/git-wait run watch --branch main" \
+  "bash prefix: git-wait"
 
 run_test_both allow \
   "sh $FAKE_PLUGIN_ROOT/scripts/setup.sh" \
@@ -99,17 +99,12 @@ run_test_both allow \
   "bash prefix: hook-compat.sh"
 
 # ===== ASK: outward PR publish guard (create/merge a PR) =====
-# Must fire whether the PR is opened/merged via the plugin's own git-cli wrapper
-# OR a direct gh/tea invocation that would sidestep the wrapper.
+# Must fire on a direct gh/tea invocation that opens/merges a PR. git-wait has
+# no create/merge surface at all (it only ever waits on a PR or CI run), so
+# there is no "own wrapper" case to guard here anymore — see the "must NOT
+# fire" section below for the assertion that git-wait itself is never
+# ask-gated.
 echo "── PR publish guard (must ASK) ──"
-run_test_ask \
-  "bash $FAKE_PLUGIN_ROOT/scripts/git-cli pr create --title x --body y" \
-  "git-cli pr create"
-
-run_test_ask \
-  "bash $FAKE_PLUGIN_ROOT/scripts/git-cli pr merge 5 --squash" \
-  "git-cli pr merge"
-
 run_test_ask \
   "gh pr create --fill" \
   "direct gh pr create (sidestep)"
@@ -125,16 +120,16 @@ run_test_ask \
 # Guard must NOT fire on read-only or reversible pr ops.
 echo "── PR guard must NOT fire (read-only / reversible) ──"
 run_test_both allow \
-  "bash $FAKE_PLUGIN_ROOT/scripts/git-cli pr auto-merge-status --branch main" \
-  "git-cli pr auto-merge-status (read-only → own-script allow)"
+  "bash $FAKE_PLUGIN_ROOT/scripts/git-wait pr wait --branch main" \
+  "git-wait pr wait (read-only waiter → own-script allow, not ask-gated)"
 
 run_test_both allow \
-  "bash $FAKE_PLUGIN_ROOT/scripts/git-cli pr close 5" \
-  "git-cli pr close (reversible → own-script allow)"
+  "bash $FAKE_PLUGIN_ROOT/scripts/git-wait run watch --branch main" \
+  "git-wait run watch (read-only waiter → own-script allow, not ask-gated)"
 
 run_test_both allow \
-  "bash $FAKE_PLUGIN_ROOT/scripts/git-cli pr list --state open" \
-  "git-cli pr list (read-only → own-script allow)"
+  "bash $FAKE_PLUGIN_ROOT/scripts/git-wait platform" \
+  "git-wait platform (read-only → own-script allow)"
 
 run_test_both none \
   "gh pr view 3" \
@@ -204,7 +199,7 @@ run_test_both allow \
 
 # Test with no PLUGIN_ROOT set (should fall through)
 echo "── No PLUGIN_ROOT set ──"
-payload_claude=$(jq -n --arg t "Bash" --arg c "$FAKE_PLUGIN_ROOT/scripts/git-cli run list" \
+payload_claude=$(jq -n --arg t "Bash" --arg c "$FAKE_PLUGIN_ROOT/scripts/git-wait run watch" \
   '{tool_name:$t,tool_input:{command:$c},hook_event_name:"PreToolUse",permission_mode:"default"}')
 raw=$(echo "$payload_claude" | env -i HOME="$HOME" PATH="$PATH" bash "$HOOK_SCRIPT" 2>/dev/null) || true
 if [[ -z "$raw" ]]; then
@@ -215,7 +210,7 @@ else
   ((FAIL++)) || true
 fi
 
-args_json=$(jq -n --arg c "$FAKE_PLUGIN_ROOT/scripts/git-cli run list" '{"command":$c}' | jq -c '.')
+args_json=$(jq -n --arg c "$FAKE_PLUGIN_ROOT/scripts/git-wait run watch" '{"command":$c}' | jq -c '.')
 payload_copilot=$(jq -n --arg t "bash" --arg a "$args_json" '{"toolName":$t,"toolArgs":$a}')
 raw=$(echo "$payload_copilot" | env -i HOME="$HOME" PATH="$PATH" bash "$HOOK_SCRIPT" 2>/dev/null) || true
 if [[ -z "$raw" ]]; then

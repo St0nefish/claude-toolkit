@@ -1,6 +1,9 @@
 # Git Tools
 
-GitHub and Gitea tooling for Claude Code. Combines a unified CLI wrapper (`git-cli`) for issues, pull requests, and CI runs with a `ship` orchestrator that drives the full branch / commit / push / PR / watch / return-to-master lifecycle in one invocation.
+GitHub and Gitea tooling for Claude Code. Platform detection plus blocking
+waiters (`git-wait`) for PR merges and CI runs, plus a `ship` orchestrator
+that drives the full branch / commit / push / PR / watch / return-to-master
+lifecycle in one invocation.
 
 ## Installation
 
@@ -12,46 +15,56 @@ claude plugin install St0nefish/agent-toolkit/git-tools
 
 | Component | Type | Trigger |
 |-----------|------|---------|
-| `git-tools:git-cli` | Skill (model-triggered) | Any GitHub/Gitea CLI op — fires when the model needs to interact with issues, PRs, CI |
+| `git-tools:git-wait` | Skill (model-triggered) | Any GitHub/Gitea CLI op — background guide pointing the model at `gh`/`tea` directly, plus the platform/wait commands |
 | `git-tools:ship` | Skill (model-triggered) | Shorthand workflow prompts like `pr/watch/master/pull`, `branch/commit/pr/watch/master/pull`, `push+pr then watch and master/pull`, or terse `watch` / `merge` |
 | `/git-tools:ship` | Slash command (user-invoked) | Explicit invocation of the same orchestrator |
 
-## How the wrapper works
+## How it works
 
-`git-cli` detects the platform from the git remote URL. GitHub repos use `gh`, Gitea repos use `tea`. All output is normalized to consistent JSON regardless of platform.
+**All GitHub/Gitea operations — listing, creating, commenting, merging,
+closing, viewing logs, raw API calls — use `gh` or `tea` directly.** There is
+no wrapper. GitHub repos use `gh`, Gitea repos use `tea`; their flag sets
+diverge in non-obvious ways (see the `git-wait` skill for the verified
+command map).
 
-| Scope | Operations |
-|-------|------------|
-| Issues | `list`, `show`, `create`, `comment`, `close`, `reopen` |
-| Pull Requests | `list`, `show`, `create`, `comment`, `merge`, `close`, `wait` |
-| CI Runs | `list`, `show`, `logs`, `watch` |
-| Repository | `default-branch`, `info` |
-| User | `whoami` |
+`git-wait` (`scripts/git-wait`) covers only what neither CLI provides on its
+own:
 
-`pr wait` polls until a PR is merged/closed/blocked, staying alive while CI or auto-merge is still progressing (idle timeout 5 min, hard ceiling 60 min). `run watch` waits for CI completion with a 60s initial delay for CI startup (hard ceiling 60 min).
+- `git-wait platform` — echoes `github` or `gitea` for the current repo's
+  origin remote, by matching it against configured `tea` logins.
+- `git-wait pr wait --branch NAME` — blocks until a PR merges, closes, or
+  conflicts, with a progress-aware idle timeout (idle timeout 5 min, hard
+  ceiling 60 min by default; tune with `--idle-timeout`/`--timeout`).
+- `git-wait run watch --branch NAME` — blocks until CI finishes, aggregating
+  per-job status and dumping failed job logs to stderr (same default
+  timeouts, plus a 60s initial delay for CI startup).
+
+Both waiters are platform-agnostic — the same invocation works whether the
+repo detected as `github` or `gitea`.
 
 ## What `ship` does
 
 `ship` runs the canonical merge lifecycle, skipping any step that's already complete:
 
-1. Stage uncommitted changes (asks before staging if there are any)
-2. Ensure work is on a feature branch (creates one if you're on master/main)
-3. Commit with a structured message
-4. Push to origin (sets upstream on first push)
-5. Create the PR via `git-cli pr create` (skipped if already exists)
-6. Watch CI via `git-cli run watch` until it passes, fails, or merges
-7. Wait for merge via `git-cli pr wait` if an auto-merge bot is involved
-8. Return to the default branch and `git pull`
-
-Each step uses the `git-cli` wrapper rather than raw `gh`/`tea`, keeping behavior consistent across GitHub and Gitea repos.
+1. Detect the platform once via `git-wait platform`
+2. Stage uncommitted changes (asks before staging if there are any)
+3. Ensure work is on a feature branch (creates one if you're on master/main)
+4. Commit with a structured message
+5. Push to origin (sets upstream on first push)
+6. Create the PR via `gh pr create` / `tea pr create` (skipped if already exists)
+7. Watch CI via `git-wait run watch` until it passes, fails, or merges
+8. Wait for merge via `git-wait pr wait` — on GitHub this waits on an
+   auto-merge bot if one is configured; **Gitea has no auto-merge**, so there
+   it waits on a human (or you, only if explicitly asked to merge)
+9. Return to the default branch and `git pull`
 
 ## Dependencies
 
 | Tool | Required | Purpose |
 |------|----------|---------|
-| `gh` | Yes* | GitHub API |
-| `tea` | Yes* | Gitea API |
-| `jq` | Yes | JSON normalization |
+| `gh` | Yes* | GitHub CLI |
+| `tea` | Yes* | Gitea CLI |
+| `jq` | Yes | JSON parsing |
 | `git` | Yes | Remote URL detection |
 
 *One of `gh` or `tea` is required depending on your remote host.

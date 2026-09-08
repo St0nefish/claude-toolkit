@@ -1,7 +1,7 @@
 {
   "name": "git-tools",
-  "version": "2.2.2",
-  "description": "GitHub and Gitea tooling — unified CLI wrapper (issues, PRs, CI runs) plus a ship orchestrator that drives the full branch/commit/push/PR/watch/cleanup lifecycle",
+  "version": "3.0.0",
+  "description": "GitHub and Gitea tooling — platform detection plus blocking waiters for PR merges and CI runs, plus a ship orchestrator that drives the full branch/commit/push/PR/watch/cleanup lifecycle using gh/tea directly",
   "author": {
     "name": "Logan Gagne"
   }

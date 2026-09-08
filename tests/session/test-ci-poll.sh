@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-ci-poll.sh — Test harness for git-cli run watch.
+# test-ci-poll.sh — Test harness for git-wait run watch.
 # Uses mock gh/tea scripts via PATH manipulation to test polling logic.
 #
 # Usage: bash tests/session/test-ci-poll.sh [filter]
@@ -7,7 +7,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GIT_CLI="$SCRIPT_DIR/../../utils/git-cli"
+GIT_WAIT="$SCRIPT_DIR/../../utils/git-wait"
 source "$SCRIPT_DIR/../lib/mock-git.sh"
 
 PASS=0
@@ -34,7 +34,7 @@ run_test() {
 
   local output exit_code
   exit_code=0
-  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
     --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || exit_code=$?
 
   local got_status
@@ -111,7 +111,7 @@ EOF
 run_test "fail" "0" "failure → status: fail, exit 0"
 
 # Verify failed_jobs field contains the failed job name
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || true
 got_failed=$(echo "$output" | grep '^failed_jobs:' | sed 's/^failed_jobs: *//')
 if [[ "$got_failed" == "lint" ]]; then
@@ -173,7 +173,7 @@ EOF
 run_test "fail" "0" "cancelled → status: fail, exit 0"
 
 # Verify the cancelled run also emits `reason: cancelled`
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || true
 got_reason=$(echo "$output" | grep '^reason:' | sed 's/^reason: *//')
 if [[ "$got_reason" == "cancelled" ]]; then
@@ -231,7 +231,7 @@ run_test "timeout" "2" "in_progress past deadline → status: timeout, exit 2"
 echo "── run watch: argument validation ──"
 
 exit_code=0
-PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch 2>/dev/null || exit_code=$?
+PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch 2>/dev/null || exit_code=$?
 if [[ "$exit_code" == "1" ]]; then
   printf "  \033[32m✓\033[0m %s\n" "missing --branch → exit 1"
   ((PASS++)) || true
@@ -260,7 +260,7 @@ case "$1:$2" in
 esac
 EOF
 
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || true
 got_url=$(echo "$output" | grep '^url:' | sed 's/^url: *//')
 if [[ "$got_url" == *"github.com"* ]]; then
@@ -297,7 +297,7 @@ run_pr_test() {
 
   local output exit_code
   exit_code=0
-  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
     --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || exit_code=$?
 
   local got_status
@@ -348,7 +348,7 @@ EOF
 run_pr_test "fail" "0" "PR check failure → status: fail, exit 0"
 
 # Verify failed_jobs contains the failed check name
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || true
 got_failed=$(echo "$output" | grep '^failed_jobs:' | sed 's/^failed_jobs: *//')
 if [[ "$got_failed" == "lint" ]]; then
@@ -422,7 +422,7 @@ run_precheck_test() {
   local output exit_code
   exit_code=0
   # Use a large initial-delay — if pre-check works, we never sleep it
-  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
     --branch "test-branch" --initial-delay 30 --timeout 60 --interval 10 2>/dev/null) || exit_code=$?
 
   local got_status got_duration
@@ -555,7 +555,7 @@ EOF
 
 # This should timeout (not pre-check exit) since CI is still pending
 exit_code=0
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch "test-branch" --initial-delay 0 --timeout 2 --interval 1 2>/dev/null) || exit_code=$?
 got_status=$(echo "$output" | grep '^status:' | head -1 | sed 's/^status: *//')
 if [[ "$got_status" == "timeout" && "$exit_code" == "2" ]]; then
@@ -580,7 +580,7 @@ esac
 EOF
 
 exit_code=0
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch "test-branch" --initial-delay 0 --timeout 2 --interval 1 2>/dev/null) || exit_code=$?
 got_status=$(echo "$output" | grep '^status:' | head -1 | sed 's/^status: *//')
 if [[ "$got_status" == "no-workflow" && "$exit_code" == "3" ]]; then
@@ -647,7 +647,7 @@ gitea_run_test() {
 
   local output exit_code
   exit_code=0
-  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
     --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || exit_code=$?
 
   local got_status
@@ -666,7 +666,7 @@ gitea_run_test() {
 # ---------------------------------------------------------------------------
 # Mock dispatch shape
 #
-# After the #103 fix, `git-cli run list` on Gitea calls
+# After the #103 fix, `run watch`'s internal `_run_list` on Gitea calls
 # `tea api repos/{owner}/{repo}/actions/runs?limit=N[&status=...]`
 # instead of `tea actions runs list`. The mock dispatches:
 #   - tea api repos/.../actions/runs?<query>          → workflow_runs list
@@ -738,7 +738,7 @@ EOF
 gitea_run_test "fail" "0" "[gitea] #87 — run success masks job failure → status: fail"
 
 # Verify the failed_jobs field names the failed job
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || true
 got_failed=$(echo "$output" | grep '^failed_jobs:' | sed 's/^failed_jobs: *//')
 if [[ "$got_failed" == "lint" ]]; then
@@ -807,7 +807,7 @@ EOF
 
 gitea_run_test "fail" "0" "[gitea] cancelled run → status: fail"
 
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || true
 got_reason=$(echo "$output" | grep '^reason:' | sed 's/^reason: *//')
 if [[ "$got_reason" == "cancelled" ]]; then
@@ -851,7 +851,7 @@ EOF
 
 gitea_run_test "fail" "0" "[gitea] log-grep fallback → status: fail"
 
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || true
 got_failed=$(echo "$output" | grep '^failed_jobs:' | sed 's/^failed_jobs: *//')
 if [[ "$got_failed" == "lint" ]]; then
@@ -897,19 +897,26 @@ EOF
 gitea_run_test "pass" "0" "[gitea] #103 — pull_request run correlates via head_branch → status: pass"
 
 # ---------------------------------------------------------------------------
-# Test (#103): run list --branch X filters client-side by head_branch.
-# Mock returns two runs: one matching, one not. Expect exactly one element
-# with branch=test-branch in the output.
+# Test (#103): the internal `_run_list --branch X` filters client-side by
+# head_branch. `run list` is no longer a public subcommand, so this is
+# exercised through `run watch`: the mock returns two runs with the
+# NON-matching run listed FIRST and given a DIFFERENT conclusion than the
+# matching one, so a broken (or absent) branch filter would report the wrong
+# outcome — either the wrong status (failure instead of success) or the wrong
+# url — instead of just happening to work by array-order luck.
 # ---------------------------------------------------------------------------
 
 write_mock_tea <<'EOF'
 case "$1" in
   api)
     case "$2" in
+      *actions/runs/*/jobs)
+        echo '{"jobs":[{"id":1,"name":"build","status":"completed","conclusion":"success"}]}'
+        ;;
       *actions/runs*)
         echo '{"total_count":2,"workflow_runs":[
-          {"id":1001,"status":"completed","conclusion":"success","name":"ci.yml","head_branch":"test-branch","head_sha":"sha1001","branch":"","event":"pull_request","run_started_at":"2024-01-01T00:00:00Z","duration":10,"url":"u1"},
-          {"id":1002,"status":"completed","conclusion":"success","name":"ci.yml","head_branch":"other","head_sha":"sha1002","branch":"","event":"pull_request","run_started_at":"2024-01-01T00:00:00Z","duration":11,"url":"u2"}
+          {"id":1002,"status":"completed","conclusion":"failure","name":"ci.yml","head_branch":"other","head_sha":"sha1002","branch":"","event":"pull_request","run_started_at":"2024-01-01T00:00:00Z","duration":11,"url":"https://gitea.example.com/owner/repo/actions/runs/1002"},
+          {"id":1001,"status":"completed","conclusion":"success","name":"ci.yml","head_branch":"test-branch","head_sha":"sha1001","branch":"","event":"pull_request","run_started_at":"2024-01-01T00:00:00Z","duration":10,"url":"https://gitea.example.com/owner/repo/actions/runs/1001"}
         ]}'
         ;;
     esac
@@ -917,16 +924,17 @@ case "$1" in
 esac
 EOF
 
-list_json=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run list --branch test-branch --limit 5 2>/dev/null) || true
-list_count=$(echo "$list_json" | jq 'length')
-list_branch=$(echo "$list_json" | jq -r '.[0].branch // empty')
-list_sha=$(echo "$list_json" | jq -r '.[0].head_sha // empty')
-if [[ "$list_count" == "1" && "$list_branch" == "test-branch" && "$list_sha" == "sha1001" ]]; then
-  printf "  \033[32m✓\033[0m %s\n" "[gitea] #103 — run list --branch filters client-side, head_sha populated"
+exit_code=0
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
+  --branch "test-branch" --initial-delay 0 --timeout 3 --interval 1 2>/dev/null) || exit_code=$?
+got_status=$(echo "$output" | grep '^status:' | head -1 | sed 's/^status: *//')
+got_url=$(echo "$output" | grep '^url:' | sed 's/^url: *//')
+if [[ "$exit_code" == "0" && "$got_status" == "pass" && "$got_url" == *"/runs/1001" ]]; then
+  printf "  \033[32m✓\033[0m %s\n" "[gitea] #103 — branch filter picks the matching run, not array order"
   ((PASS++)) || true
 else
-  printf "  \033[31m✗\033[0m %s  (count=%s branch=%s sha=%s)\n" \
-    "[gitea] #103 — run list --branch filters client-side, head_sha populated" "$list_count" "$list_branch" "$list_sha"
+  printf "  \033[31m✗\033[0m %s  (exit=%s status=%s url=%s)\n" \
+    "[gitea] #103 — branch filter picks the matching run, not array order" "$exit_code" "$got_status" "$got_url"
   ((FAIL++)) || true
 fi
 
@@ -949,7 +957,7 @@ esac
 EOF
 
 exit_code=0
-stderr_out=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+stderr_out=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch test-branch --initial-delay 0 --timeout 1 --interval 1 2>&1 >/dev/null) || exit_code=$?
 if [[ "$exit_code" == "3" ]] && echo "$stderr_out" | grep -q "No CI workflow found"; then
   printf "  \033[32m✓\033[0m %s\n" "[gitea] #103 — no runs → stderr says 'No CI workflow found'"
@@ -974,7 +982,7 @@ esac
 EOF
 
 exit_code=0
-stderr_out=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+stderr_out=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch test-branch --initial-delay 0 --timeout 1 --interval 1 2>&1 >/dev/null) || exit_code=$?
 if [[ "$exit_code" == "3" ]] && echo "$stderr_out" | grep -q "none correlate to branch"; then
   printf "  \033[32m✓\033[0m %s\n" "[gitea] #103 — runs exist but none match → stderr says 'none correlate'"
@@ -1015,7 +1023,7 @@ EOF
 # initial-delay 60 forces use of the pre-check path: if it doesn't catch the
 # failed job, the test would hang on the initial sleep.
 exit_code=0
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" run watch \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" run watch \
   --branch "test-branch" --initial-delay 60 --timeout 3 --interval 1 2>/dev/null) || exit_code=$?
 got_status=$(echo "$output" | grep '^status:' | head -1 | sed 's/^status: *//')
 got_duration=$(echo "$output" | grep '^duration:' | sed 's/^duration: *//')

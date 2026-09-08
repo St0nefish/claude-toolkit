@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-pr-wait.sh — Test harness for git-cli pr wait.
+# test-pr-wait.sh — Test harness for git-wait pr wait.
 # Uses mock gh/tea scripts via PATH manipulation to test polling logic.
 #
 # Usage: bash tests/session/test-pr-wait.sh [filter]
@@ -7,7 +7,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GIT_CLI="$SCRIPT_DIR/../../utils/git-cli"
+GIT_WAIT="$SCRIPT_DIR/../../utils/git-wait"
 source "$SCRIPT_DIR/../lib/mock-git.sh"
 
 PASS=0
@@ -34,7 +34,7 @@ run_test() {
 
   local output exit_code
   exit_code=0
-  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" pr wait \
+  output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" pr wait \
     --branch "test-branch" --timeout 3 --interval 1 2>/dev/null) || exit_code=$?
 
   local got_status
@@ -217,7 +217,7 @@ run_test "no-pr" "3" "no PR for branch → status: no-pr, exit 3"
 echo "── pr wait: argument validation ──"
 
 exit_code=0
-PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" pr wait 2>/dev/null || exit_code=$?
+PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" pr wait 2>/dev/null || exit_code=$?
 if [[ "$exit_code" == "1" ]]; then
   printf "  \033[32m✓\033[0m %s\n" "missing --branch → exit 1"
   ((PASS++)) || true
@@ -243,7 +243,7 @@ case "$1:$2" in
 esac
 EOF
 
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" pr wait \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" pr wait \
   --branch "test-branch" --timeout 3 --interval 1 2>/dev/null) || true
 
 got_url=$(echo "$output" | grep '^url:' | sed 's/^url: *//')
@@ -349,7 +349,7 @@ EOF
 
 start=$SECONDS
 exit_code=0
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" pr wait \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" pr wait \
   --branch "test-branch" --idle-timeout 2 --timeout 100 --interval 1 2>/dev/null) || exit_code=$?
 duration=$((SECONDS - start))
 got_status=$(echo "$output" | grep '^status:' | head -1 | sed 's/^status: *//')
@@ -379,7 +379,7 @@ EOF
 
 start=$SECONDS
 exit_code=0
-output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_CLI" pr wait \
+output=$(PATH="$MOCK_DIR:$PATH" bash "$GIT_WAIT" pr wait \
   --branch "test-branch" --idle-timeout 1 --timeout 4 --interval 1 2>/dev/null) || exit_code=$?
 duration=$((SECONDS - start))
 got_status=$(echo "$output" | grep '^status:' | head -1 | sed 's/^status: *//')
@@ -396,13 +396,13 @@ fi
 
 # ---------------------------------------------------------------------------
 # Test: default timeout invariants (issue #149)
-# Parsed directly from the canonical git-cli source — no wall-clock wait.
+# Parsed directly from the canonical git-wait source — no wall-clock wait.
 # ---------------------------------------------------------------------------
 
 echo "── pr wait / run watch: default timeout invariants ──"
 
-pr_wait_line=$(grep -A4 '^  pr:wait)' "$GIT_CLI" | grep 'branch=""' | head -1)
-run_watch_line=$(grep -A7 '^  run:watch)' "$GIT_CLI" | grep 'branch=""' | head -1)
+pr_wait_line=$(grep -A4 '^  pr:wait)' "$GIT_WAIT" | grep 'branch=""' | head -1)
+run_watch_line=$(grep -A7 '^  run:watch)' "$GIT_WAIT" | grep 'branch=""' | head -1)
 
 pr_wait_timeout=$(echo "$pr_wait_line" | sed -nE 's/.*[;[:space:]]timeout=([0-9]+).*/\1/p')
 pr_wait_idle=$(echo "$pr_wait_line" | sed -nE 's/.*idle_timeout=([0-9]+).*/\1/p')

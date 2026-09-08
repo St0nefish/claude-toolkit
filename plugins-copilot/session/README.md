@@ -92,9 +92,12 @@ When starting from an issue, the branch type is inferred from issue labels:
 | `git` | Yes | All branch, commit, and diff operations |
 | `gh` | Yes* | GitHub API — issues, PRs, CI |
 | `tea` | Yes* | Gitea API — issues, PRs, CI |
-| `jq` | Yes | JSON processing in git-cli |
+| `jq` | Yes | JSON processing for `gh`/`tea` output and `git-wait` |
 
 *Either `gh` or `tea` is required depending on your git remote host.
 
-The `git-cli` wrapper is bundled as a vendored script in `scripts/` — you don't need
-to install it separately, but you do need the underlying CLI tools.
+Skills call `gh`/`tea` directly for issue and PR CRUD, listing, comments, merging,
+and logs. `git-wait` is bundled as a vendored script in `scripts/` for the two
+things neither CLI gives you: platform detection (`git-wait platform`) and blocking
+waits for a PR to merge (`git-wait pr wait`) or CI to finish (`git-wait run watch`).
+You don't need to install it separately, but you do need the underlying CLI tools.

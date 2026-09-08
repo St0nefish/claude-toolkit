@@ -31,7 +31,7 @@ done
 # Anything else (multi-line `run: |` install blocks) is setup, not a check.
 mapfile -t ci_cmds < <(
   grep -oE '^\s+run: (bash [^ ]+\.sh|rumdl check \.)$' "$WORKFLOW" |
-    sed -E 's/^\s+run: //' | sort -u
+    sed -E 's/^[[:space:]]+run: //' | sort -u
 )
 
 if [[ ${#ci_cmds[@]} -eq 0 ]]; then

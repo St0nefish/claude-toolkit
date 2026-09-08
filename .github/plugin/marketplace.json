@@ -37,7 +37,7 @@
         "name": "Logan Gagne"
       },
       "category": "development",
-      "description": "GitHub and Gitea tooling — unified CLI wrapper (issues, PRs, CI runs) plus a ship orchestrator that drives the full branch/commit/push/PR/watch/cleanup lifecycle",
+      "description": "GitHub and Gitea tooling — platform detection plus blocking waiters for PR merges and CI runs, plus a ship orchestrator that drives the full branch/commit/push/PR/watch/cleanup lifecycle using gh/tea directly",
       "name": "git-tools",
       "source": "./plugins-copilot/git-tools"
     },
