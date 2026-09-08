@@ -177,6 +177,8 @@ source "$(dirname "$0")/hook-compat.sh"
 | Hook format | Nested `hooks` array, `command` key | Object `hooks` map, `bash` key, `version: 1` |
 | Payload keys | `tool_name` / `tool_input` | `toolName` / `toolArgs` |
 
+_Verification note: concurrent-PR merge test B (inert, no functional change)._
+
 ## License
 
 MIT
