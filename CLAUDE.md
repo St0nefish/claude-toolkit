@@ -295,7 +295,7 @@ the `dev/tools/repo-workflow-patterns.md` document in the knowledge base. The
    - **Bullet list**: specific changes made
 4. Push the branch and open a PR via `gh pr create`
 5. Monitor the GitHub Actions run (`gh run list`, `gh run view`) — fix any failures and push follow-up commits
-6. **Do not manually merge PRs.** A CI bot (`st0nefish-ci`) automatically enables **squash** auto-merge on new PRs, gated on a single required check, `ci-pass` (a fan-in over the individual CI jobs). Once `ci-pass` succeeds, the PR merges on its own and the source branch is deleted.
+6. **Do not manually merge PRs.** A CI bot (`st0nefish-ci`) automatically enables **squash** auto-merge on new PRs, gated on a single required check, `ci-pass` (a fan-in over the individual CI jobs). Once `ci-pass` succeeds, the PR merges on its own and the source branch is deleted. Auto-merge only fires for the owner's (`St0nefish`) PRs — other contributors' PRs still run full CI but require a manual review and merge; they never land unattended.
 7. After the PR merges, check out `master` and pull to stay current:
 
    ```bash

@@ -9,6 +9,9 @@ permissions:
 
 jobs:
   auto-merge:
+    # Only the owner's PRs auto-merge. Other contributors' PRs still run CI
+    # and can be merged manually after review, but must never land unattended.
+    if: github.event.pull_request.user.login == 'St0nefish'
     runs-on: ubuntu-latest
     steps:
       - name: Generate App token
