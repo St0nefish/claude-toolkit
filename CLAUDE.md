@@ -278,7 +278,9 @@ Hooks live in `.githooks/` and are tracked in git. The pre-commit hook runs `uti
 
 ### Branching and commits
 
-The `master` branch is protected — never commit directly to it. For all changes:
+This repo follows **Pattern A** (CI-gated, squash auto-merge) as defined in
+the `dev/tools/repo-workflow-patterns.md` document in the knowledge base. The
+`master` branch is protected — never commit directly to it. For all changes:
 
 1. Ensure you're branching from the latest `master`:
 
@@ -293,12 +295,14 @@ The `master` branch is protected — never commit directly to it. For all change
    - **Bullet list**: specific changes made
 4. Push the branch and open a PR via `gh pr create`
 5. Monitor the GitHub Actions run (`gh run list`, `gh run view`) — fix any failures and push follow-up commits
-6. **Do not manually merge PRs.** A CI bot (`st0nefish-ci`) automatically enables auto-merge (merge commit) on new PRs. Once CI passes, the PR merges on its own.
+6. **Do not manually merge PRs.** A CI bot (`st0nefish-ci`) automatically enables **squash** auto-merge on new PRs, gated on a single required check, `ci-pass` (a fan-in over the individual CI jobs). Once `ci-pass` succeeds, the PR merges on its own and the source branch is deleted.
 7. After the PR merges, check out `master` and pull to stay current:
 
    ```bash
    git checkout master && git pull
    ```
+
+8. **Do not routinely rebase an open PR branch onto a moved `master`, and do not add an auto-rebase bot.** The up-to-date-before-merge requirement is deliberately off, so PRs opened from the same base commit land independently of each other and of a moving `master`. Rebasing (or a bot that force-pushes open branches whenever `master` moves) rewrites SHAs, invalidates in-flight CI runs, and can strand a concurrent agent worktree holding that branch. The only case for updating a branch against `master` is a genuine textual conflict, done manually.
 
 ## Copilot CLI Compatibility
 
